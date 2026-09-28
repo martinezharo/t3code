@@ -2,6 +2,7 @@ import { DESKTOP_PASTE_AS_TEXT_EVENT } from "../../lib/desktopPasteAsText";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { usePrimaryEnvironmentId } from "../../state/environments";
 import { runtimeModeConfig, runtimeModeOptions } from "./runtimeModeConfig";
+import { ScheduledTurnButton } from "./ScheduledTurnButton";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { AttachmentFilePreview } from "../files/AttachmentFilePreview";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
@@ -1442,6 +1443,7 @@ export interface ChatComposerProps {
   // Callbacks
   onCompactContext: () => void;
   onSend: (e?: { preventDefault: () => void }, intent?: ComposerSubmissionIntent) => void;
+  onSchedule: (scheduledAt: string) => Promise<boolean>;
   onInterrupt: () => void;
   onImplementPlanInNewThread: () => void;
   onRespondToApproval: (
@@ -1558,6 +1560,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPageScrollRelease,
     onCompactContext,
     onSend,
+    onSchedule,
     onInterrupt,
     onImplementPlanInNewThread,
     onRespondToApproval,
@@ -7045,6 +7048,26 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     compactDisabledReason={resolvedCompactDisabledReason}
                     {...(compactCommandAvailable ? { onCompactContext: compactThreadContext } : {})}
                   />
+                  {routeKind === "server" && activeThreadId ? (
+                    <ScheduledTurnButton
+                      environmentId={environmentId}
+                      threadId={activeThreadId}
+                      disabledReason={
+                        isConnecting || environmentUnavailable !== null
+                          ? "Connect to the environment to schedule a message."
+                          : !prompt.trim()
+                            ? "Write a message to schedule it."
+                            : composerImages.length > 0 ||
+                                composerFiles.length > 0 ||
+                                composerTerminalContexts.length > 0 ||
+                                composerPreviewAnnotations.length > 0 ||
+                                composerReviewComments.length > 0
+                              ? "Scheduled messages currently support text only."
+                              : null
+                      }
+                      onSchedule={onSchedule}
+                    />
+                  ) : null}
                 </div>
               </div>
             )}

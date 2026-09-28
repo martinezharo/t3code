@@ -34,6 +34,9 @@ import {
 
 export const ORCHESTRATION_WS_METHODS = {
   dispatchCommand: "orchestration.dispatchCommand",
+  scheduleTurn: "orchestration.scheduleTurn",
+  listScheduledTurns: "orchestration.listScheduledTurns",
+  cancelScheduledTurn: "orchestration.cancelScheduledTurn",
   getWorkflowScript: "orchestration.getWorkflowScript",
   getTurnDiff: "orchestration.getTurnDiff",
   getFullThreadDiff: "orchestration.getFullThreadDiff",
@@ -135,6 +138,27 @@ export type RuntimeMode = typeof RuntimeMode.Type;
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);
 export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
+
+export const ScheduledTurn = Schema.Struct({
+  id: Schema.String,
+  threadId: ThreadId,
+  text: Schema.String,
+  scheduledAt: Schema.String,
+  status: Schema.Literals(["pending", "sent", "failed", "cancelled"]),
+  lastError: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+});
+export type ScheduledTurn = typeof ScheduledTurn.Type;
+
+export const ScheduleTurnInput = Schema.Struct({
+  threadId: ThreadId,
+  text: Schema.String,
+  scheduledAt: Schema.String,
+  modelSelection: Schema.optional(ModelSelection),
+  runtimeMode: RuntimeMode,
+  interactionMode: ProviderInteractionMode,
+});
+export type ScheduleTurnInput = typeof ScheduleTurnInput.Type;
 export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";
 export const ProviderRequestKind = Schema.Literals([
   "command",
@@ -2369,6 +2393,18 @@ export const OrchestrationRpcSchemas = {
     input: ClientOrchestrationCommand,
     output: DispatchResult,
   },
+  scheduleTurn: {
+    input: ScheduleTurnInput,
+    output: ScheduledTurn,
+  },
+  listScheduledTurns: {
+    input: Schema.Struct({ threadId: ThreadId }),
+    output: Schema.Array(ScheduledTurn),
+  },
+  cancelScheduledTurn: {
+    input: Schema.Struct({ id: Schema.String, threadId: ThreadId }),
+    output: Schema.Struct({ cancelled: Schema.Boolean }),
+  },
   getWorkflowScript: {
     input: OrchestrationGetWorkflowScriptInput,
     output: OrchestrationGetWorkflowScriptResult,
@@ -2398,6 +2434,11 @@ export const OrchestrationRpcSchemas = {
     output: OrchestrationShellStreamItem,
   },
 } as const;
+
+export class OrchestrationScheduledTurnError extends Schema.TaggedError<OrchestrationScheduledTurnError>()(
+  "OrchestrationScheduledTurnError",
+  { message: Schema.String },
+) {}
 
 export class OrchestrationGetSnapshotError extends Schema.TaggedError<OrchestrationGetSnapshotError>()(
   "OrchestrationGetSnapshotError",

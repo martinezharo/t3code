@@ -23,6 +23,9 @@ type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
  */
 export const RPC_REQUIRED_SCOPES = {
   [ORCHESTRATION_WS_METHODS.dispatchCommand]: AuthOrchestrationOperateScope,
+  [ORCHESTRATION_WS_METHODS.scheduleTurn]: AuthOrchestrationOperateScope,
+  [ORCHESTRATION_WS_METHODS.listScheduledTurns]: AuthOrchestrationReadScope,
+  [ORCHESTRATION_WS_METHODS.cancelScheduledTurn]: AuthOrchestrationOperateScope,
   [ORCHESTRATION_WS_METHODS.getWorkflowScript]: AuthOrchestrationReadScope,
   [ORCHESTRATION_WS_METHODS.getTurnDiff]: AuthOrchestrationReadScope,
   [ORCHESTRATION_WS_METHODS.getFullThreadDiff]: AuthOrchestrationReadScope,

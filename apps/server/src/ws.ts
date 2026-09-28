@@ -120,6 +120,7 @@ import { makeProviderInstallation } from "./provider/providerInstallation.ts";
 import * as ServerSelfUpdate from "./cloud/selfUpdate.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
+import { ScheduledTurns } from "./orchestration/ScheduledTurns.ts";
 import * as ServerSettings from "./serverSettings.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
 import { withTerminalOutputWindow } from "./terminal/OutputProtocol.ts";
@@ -518,6 +519,7 @@ const makeWsRpcLayer = (
             );
       const orchestrationEngine = yield* OrchestrationEngine.OrchestrationEngineService;
       const threadDeletionReactor = yield* ThreadDeletionReactor;
+      const scheduledTurns = yield* ScheduledTurns;
       const analytics = yield* AnalyticsService.AnalyticsService;
       // Every command dispatched on this connection carries the connecting
       // client's origin, including server-generated bootstrap sub-commands:
@@ -1873,6 +1875,18 @@ const makeWsRpcLayer = (
           .pipe(Effect.ignoreCause({ log: true }), Effect.forkDetach, Effect.asVoid);
 
       return WsRpcGroup.of({
+        [ORCHESTRATION_WS_METHODS.scheduleTurn]: (input) =>
+          observeRpcEffect(ORCHESTRATION_WS_METHODS.scheduleTurn, scheduledTurns.schedule(input)),
+        [ORCHESTRATION_WS_METHODS.listScheduledTurns]: (input) =>
+          observeRpcEffect(
+            ORCHESTRATION_WS_METHODS.listScheduledTurns,
+            scheduledTurns.list(input.threadId),
+          ),
+        [ORCHESTRATION_WS_METHODS.cancelScheduledTurn]: (input) =>
+          observeRpcEffect(
+            ORCHESTRATION_WS_METHODS.cancelScheduledTurn,
+            scheduledTurns.cancel(input),
+          ),
         [ORCHESTRATION_WS_METHODS.dispatchCommand]: (command) =>
           observeRpcEffect(
             ORCHESTRATION_WS_METHODS.dispatchCommand,
@@ -3788,6 +3802,7 @@ const makeWsRpcLayer = (
 
 export const websocketRpcRouteLayer = Layer.unwrap(
   Effect.gen(function* () {
+    const scheduledTurns = yield* ScheduledTurns;
     const previewAutomationBroker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
     const baseServerSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
     const config = yield* ServerConfig.ServerConfig;
@@ -3856,6 +3871,7 @@ export const websocketRpcRouteLayer = Layer.unwrap(
               clientAnalyticsProps,
               previewAutomationBroker,
             ).pipe(
+              Layer.provide(Layer.succeed(ScheduledTurns, scheduledTurns)),
               Layer.provideMerge(RpcSerialization.layerJson),
               Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
               Layer.provide(AgentSessionScanner.layer),

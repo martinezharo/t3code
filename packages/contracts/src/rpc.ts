@@ -91,6 +91,7 @@ import {
   ClientOrchestrationCommand,
   ORCHESTRATION_WS_METHODS,
   OrchestrationDispatchCommandError,
+  OrchestrationScheduledTurnError,
   OrchestrationGetFullThreadDiffError,
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetSnapshotError,
@@ -1278,6 +1279,27 @@ const WsOrchestrationDispatchCommandRpc = Rpc.make(ORCHESTRATION_WS_METHODS.disp
   error: Schema.Union([OrchestrationDispatchCommandError, EnvironmentAuthorizationError]),
 });
 
+const WsOrchestrationScheduleTurnRpc = Rpc.make(ORCHESTRATION_WS_METHODS.scheduleTurn, {
+  payload: OrchestrationRpcSchemas.scheduleTurn.input,
+  success: OrchestrationRpcSchemas.scheduleTurn.output,
+  error: Schema.Union([OrchestrationScheduledTurnError, EnvironmentAuthorizationError]),
+});
+
+const WsOrchestrationListScheduledTurnsRpc = Rpc.make(ORCHESTRATION_WS_METHODS.listScheduledTurns, {
+  payload: OrchestrationRpcSchemas.listScheduledTurns.input,
+  success: OrchestrationRpcSchemas.listScheduledTurns.output,
+  error: Schema.Union([OrchestrationScheduledTurnError, EnvironmentAuthorizationError]),
+});
+
+const WsOrchestrationCancelScheduledTurnRpc = Rpc.make(
+  ORCHESTRATION_WS_METHODS.cancelScheduledTurn,
+  {
+    payload: OrchestrationRpcSchemas.cancelScheduledTurn.input,
+    success: OrchestrationRpcSchemas.cancelScheduledTurn.output,
+    error: Schema.Union([OrchestrationScheduledTurnError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsOrchestrationGetWorkflowScriptRpc = Rpc.make(ORCHESTRATION_WS_METHODS.getWorkflowScript, {
   payload: OrchestrationRpcSchemas.getWorkflowScript.input,
   success: OrchestrationRpcSchemas.getWorkflowScript.output,
@@ -1529,6 +1551,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeBackgroundPolicyRpc,
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationDispatchCommandRpc,
+  WsOrchestrationScheduleTurnRpc,
+  WsOrchestrationListScheduledTurnsRpc,
+  WsOrchestrationCancelScheduledTurnRpc,
   WsOrchestrationGetWorkflowScriptRpc,
   WsOrchestrationGetTurnDiffRpc,
   WsOrchestrationGetFullThreadDiffRpc,
