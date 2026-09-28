@@ -346,6 +346,7 @@ import {
 } from "../state/server";
 import { terminalEnvironment } from "../state/terminal";
 import { threadEnvironment, useEnvironmentThread } from "../state/threads";
+import { scheduleTurn as scheduleThreadTurn } from "../state/scheduledTurns";
 import {
   requestOlderThreadTurns,
   threadHasOlderTurns,
@@ -1521,6 +1522,7 @@ export default function ChatView(props: ChatViewProps) {
     reportFailure: false,
   });
   const startThreadTurn = useAtomCommand(threadEnvironment.startTurn, { reportFailure: false });
+  const scheduleTurnCommand = useAtomCommand(scheduleThreadTurn, { reportFailure: false });
   const createAttachmentAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
     reportFailure: false,
     refresh: true,
@@ -8580,6 +8582,58 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
 
+  const onSchedule = async (scheduledAt: string): Promise<boolean> => {
+    const draftText = promptRef.current;
+    const text = draftText.trim();
+    const sendContext = composerRef.current?.getSendContext();
+    if (
+      !isServerThread ||
+      !activeThread ||
+      !sendContext?.providerAvailable ||
+      !text ||
+      composerHasNonPromptContent ||
+      activePendingApproval !== null ||
+      pendingUserInputs.length > 0 ||
+      isConnecting ||
+      activeEnvironmentUnavailable
+    ) {
+      toastManager.add({
+        type: "warning",
+        title: "This draft cannot be scheduled",
+        description: "Use an existing thread with a text-only message and an available provider.",
+      });
+      return false;
+    }
+    if (!composerRef.current?.validateProviderInput(text)) return false;
+    const result = await scheduleTurnCommand({
+      environmentId,
+      input: {
+        threadId: activeThread.id,
+        text,
+        scheduledAt,
+        modelSelection: sendContext.selectedModelSelection,
+        runtimeMode,
+        interactionMode: sendContext.interactionMode,
+      },
+    });
+    if (result._tag !== "Success") {
+      toastManager.add({
+        type: "error",
+        title: "Could not schedule message",
+        description: "Check the connection and try again.",
+      });
+      return false;
+    }
+    // Only clear the text we scheduled. A new edit while the request was in flight stays in place.
+    if (promptRef.current === draftText) {
+      promptRef.current = "";
+      setComposerDraftPrompt(composerDraftTarget, "");
+      composerRef.current?.resetCursorState();
+    }
+    toastManager.add({ type: "success", title: "Message scheduled" });
+    return true;
+  };
+
   // Queued messages go out from QueuedMessageSender, which also covers
   // threads that are not on screen. Send now uses the same path but skips the
   // wait for a boundary. Approvals and questions still hold it: a steer on
@@ -10087,6 +10141,7 @@ export default function ChatView(props: ChatViewProps) {
                             onPageScrollRelease={onComposerPageScrollRelease}
                             onCompactContext={onCompactContext}
                             onSend={onSend}
+                            onSchedule={onSchedule}
                             onInterrupt={onInterrupt}
                             onImplementPlanInNewThread={onImplementPlanInNewThread}
                             onRespondToApproval={onRespondToApproval}

@@ -49,6 +49,14 @@ the oldest queued message now. Change `thread.steerQueuedMessage` in
 **Settings → Keybindings** to use another shortcut. It leaves the current draft
 in the composer and waits if the agent needs an approval or an answer.
 
+## Schedule a message on web
+
+In an existing thread, write a text-only message and choose **Schedule message**
+beside Send. Pick a suggested delay or a date and time within the next 30 days.
+The environment's server stores the message and sends it at that time, even if
+you close the page. Keep that server running. Reopen the menu to review or
+cancel pending messages. Attachments and new draft threads are not supported.
+
 ## Queue messages offline on mobile
 
 Mobile keeps local copies of draft attachments, so you can preview them and queue
