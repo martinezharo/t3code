@@ -1132,6 +1132,56 @@ describe("deriveMessagesTimelineRows", () => {
     ]);
   });
 
+  it("appends scheduled messages after the queued ones until the server sends them", () => {
+    const scheduledTurn = (id: string) => ({
+      id,
+      threadId: ThreadId.make("thread-1"),
+      text: `scheduled ${id}`,
+      scheduledAt: "2026-01-02T00:00:00Z",
+      status: "pending" as const,
+      lastError: null,
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    const input = {
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+      queuedMessages: [queuedMessage("q1", "first")],
+      scheduledTurns: [scheduledTurn("s1"), scheduledTurn("s2")],
+    };
+
+    const pending = deriveMessagesTimelineRows({ ...input, timelineEntries: [] });
+    expect(pending.map((row) => row.id)).toEqual([
+      "queued-message:q1",
+      "scheduled-message:s1",
+      "scheduled-message:s2",
+    ]);
+
+    const sent = deriveMessagesTimelineRows({
+      ...input,
+      timelineEntries: [
+        {
+          id: "entry-s1",
+          kind: "message",
+          createdAt: "2026-01-02T00:00:00Z",
+          message: {
+            id: MessageId.make("s1"),
+            role: "user",
+            text: "scheduled s1",
+            turnId: null,
+            createdAt: "2026-01-02T00:00:00Z",
+            updatedAt: "2026-01-02T00:00:00Z",
+            streaming: false,
+          },
+        },
+      ],
+    });
+    expect(sent.filter((row) => row.kind === "scheduled-message").map((row) => row.id)).toEqual([
+      "scheduled-message:s2",
+    ]);
+  });
+
   it("leads the worktree setup card with the working header", () => {
     const snapshot: WorktreeSetupSnapshot = {
       threadId: ThreadId.make("thread-setup"),
