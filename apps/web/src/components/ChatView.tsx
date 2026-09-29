@@ -346,7 +346,10 @@ import {
 } from "../state/server";
 import { terminalEnvironment } from "../state/terminal";
 import { threadEnvironment, useEnvironmentThread } from "../state/threads";
-import { scheduleTurn as scheduleThreadTurn } from "../state/scheduledTurns";
+import {
+  scheduleTurn as scheduleThreadTurn,
+  useThreadScheduledTurns,
+} from "../state/scheduledTurns";
 import {
   requestOlderThreadTurns,
   threadHasOlderTurns,
@@ -7223,6 +7226,10 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const queuedMessages = useQueuedMessages(activeThreadKey ?? "");
+  const { turns: scheduledTurns, cancel: cancelScheduledTurnById } = useThreadScheduledTurns(
+    environmentId,
+    isServerThread ? activeThreadId : null,
+  );
   // The composer's model and modes, as a queued message keeps them for its send.
   const readComposerSendSettings = (
     sendCtx: ReturnType<ChatComposerHandle["getSendContext"]>,
@@ -7241,6 +7248,24 @@ export default function ChatView(props: ChatViewProps) {
   });
   // Puts queued messages back into the composer after Stop or Cancel. Prompts
   // join with blank lines; attachments and contexts are added.
+  // Cancelling a scheduled message hands its text back so it can be edited and rescheduled.
+  const onCancelScheduledTurn = async (id: string) => {
+    const text = await cancelScheduledTurnById(id);
+    if (text === null) return;
+    const nextPrompt = [promptRef.current, text]
+      .map((prompt) => prompt.trim())
+      .filter((prompt) => prompt.length > 0)
+      .join("\n\n");
+    promptRef.current = nextPrompt;
+    setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+    composerRef.current?.resetCursorState({
+      cursor: collapseExpandedComposerCursor(nextPrompt, nextPrompt.length),
+      prompt: nextPrompt,
+      detectTrigger: true,
+    });
+    scheduleComposerFocus();
+  };
+
   const restoreQueuedMessagesToComposer = (messages: ReadonlyArray<QueuedComposerMessage>) => {
     const [firstMessage] = messages;
     if (!firstMessage) return;
@@ -9957,6 +9982,8 @@ export default function ChatView(props: ChatViewProps) {
                   { context: { terminalFocus: false } },
                 )}
                 onRemoveQueuedMessage={onRemoveQueuedMessage}
+                {...(paintOnlyDisplayedTimeline ? {} : { scheduledTurns })}
+                onCancelScheduledTurn={onCancelScheduledTurn}
               />
 
               {/* scroll to end pill — shown when user has scrolled away from the live edge */}
@@ -10142,6 +10169,7 @@ export default function ChatView(props: ChatViewProps) {
                             onCompactContext={onCompactContext}
                             onSend={onSend}
                             onSchedule={onSchedule}
+                            onCancelScheduledTurn={onCancelScheduledTurn}
                             onInterrupt={onInterrupt}
                             onImplementPlanInNewThread={onImplementPlanInNewThread}
                             onRespondToApproval={onRespondToApproval}

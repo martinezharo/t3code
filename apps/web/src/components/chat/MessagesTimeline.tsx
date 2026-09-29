@@ -1,4 +1,4 @@
-import { ArrowUpIcon, ClockIcon } from "lucide-react";
+import { ArrowUpIcon, CalendarClockIcon, ClockIcon } from "lucide-react";
 import { ReadOnlySourcePreview } from "../files/AttachmentFilePreview";
 import { useRightPanelStore } from "~/rightPanelStore";
 import {
@@ -50,6 +50,7 @@ const EMPTY_AGENT_PANEL_MODEL = emptyAgentPanelModel();
 const NOOP_OPEN_AGENTS = () => {};
 const EMPTY_QUEUED_MESSAGES: ReadonlyArray<QueuedComposerMessage> = [];
 const NOOP_QUEUED_MESSAGE_ACTION = (_id: string) => {};
+const EMPTY_SCHEDULED_TURNS: ReadonlyArray<ScheduledTurn> = [];
 const NOOP_USE_ARTIFACT_TEMPLATE = () => {};
 const NOOP_OPEN_ATTACHMENT = (_attachment: ChatFileAttachment) => {};
 import { resolveChatListAnchoredEndSpace } from "@t3tools/shared/chatList";
@@ -137,6 +138,7 @@ import type {
   KnownComposerContextRecord,
 } from "@t3tools/contracts";
 import { Button } from "../ui/button";
+import type { ScheduledTurn } from "@t3tools/contracts";
 import type { QueuedComposerMessage } from "../../queuedMessageStore";
 import { useAssetUrlRefresh, useAssetUrls, useAssetUrlState } from "../../assets/assetUrls";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
@@ -301,6 +303,7 @@ interface TimelineRowSharedState {
   onSteerQueuedMessage: (id: string) => void;
   steerQueuedMessageShortcutLabel: string | null;
   onRemoveQueuedMessage: (id: string) => void;
+  onCancelScheduledTurn: (id: string) => void;
 }
 
 interface TimelineRowActivityState {
@@ -467,6 +470,8 @@ interface MessagesTimelineProps {
   onSteerQueuedMessage?: (id: string) => void;
   steerQueuedMessageShortcutLabel?: string | null;
   onRemoveQueuedMessage?: (id: string) => void;
+  scheduledTurns?: ReadonlyArray<ScheduledTurn>;
+  onCancelScheduledTurn?: (id: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -525,6 +530,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   onSteerQueuedMessage = NOOP_QUEUED_MESSAGE_ACTION,
   steerQueuedMessageShortcutLabel = null,
   onRemoveQueuedMessage = NOOP_QUEUED_MESSAGE_ACTION,
+  scheduledTurns = EMPTY_SCHEDULED_TURNS,
+  onCancelScheduledTurn = NOOP_QUEUED_MESSAGE_ACTION,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   const rememberedPosition = useMemo(
@@ -785,6 +792,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         liveAgentTaskIds,
         worktreeSetup,
         queuedMessages,
+        scheduledTurns,
       },
       previous?.threadKey === listIdentityKey && previous.workspaceRoot === workspaceRoot
         ? previous.projection
@@ -808,6 +816,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     liveAgentTaskIds,
     worktreeSetup,
     queuedMessages,
+    scheduledTurns,
   ]);
   const rows = useStableRows(rawRows, listIdentityKey);
   const minimapItems = useMemo(() => deriveTimelineMinimapItems(rows), [rows]);
@@ -1175,6 +1184,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onSteerQueuedMessage,
       steerQueuedMessageShortcutLabel,
       onRemoveQueuedMessage,
+      onCancelScheduledTurn,
     }),
     [
       readyCitationRequest,
@@ -1211,6 +1221,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onSteerQueuedMessage,
       steerQueuedMessageShortcutLabel,
       onRemoveQueuedMessage,
+      onCancelScheduledTurn,
     ],
   );
   const backgroundWorktreeSetup =
@@ -1745,6 +1756,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "thinking" ? <ThinkingTimelineRow /> : null}
       {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
       {row.kind === "queued-message" ? <QueuedMessageTimelineRow row={row} /> : null}
+      {row.kind === "scheduled-message" ? <ScheduledMessageTimelineRow row={row} /> : null}
     </div>
   );
 });
@@ -1871,6 +1883,71 @@ function QueuedMessageTimelineRow({
               <TooltipPopup side="bottom">Cancel and return to the composer</TooltipPopup>
             </Tooltip>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A message the server will send at a set time: a dashed user bubble with a cancel action. */
+function ScheduledMessageTimelineRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "scheduled-message" }>;
+}) {
+  const ctx = use(TimelineRowCtx);
+  const { scheduledTurn } = row;
+  const failed = scheduledTurn.status === "failed";
+  const when = new Date(scheduledTurn.scheduledAt).toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const statusLabel = failed
+    ? `Failed: ${scheduledTurn.lastError ?? "Could not send"}`
+    : `The server sends it on ${when}, even if this page is closed`;
+  return (
+    <div className="flex flex-col items-end" data-scheduled-message-id={scheduledTurn.id}>
+      <div className="max-w-[80%] rounded-2xl border border-dashed border-border p-3 text-message-foreground/80">
+        <UserMessageBody
+          text={scheduledTurn.text.trim()}
+          skills={ctx.skills}
+          markdownCwd={ctx.markdownCwd}
+        />
+        <div
+          className="mt-2 flex items-center gap-4 text-secondary-label text-xs"
+          data-scroll-anchor-ignore
+        >
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className="inline-flex h-6 items-center gap-1" />}
+              aria-label={`${failed ? "Failed" : "Scheduled"}. ${statusLabel}.`}
+            >
+              <CalendarClockIcon className="size-3.5" aria-hidden />
+              {failed ? "Failed to send" : `Scheduled for ${when}`}
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">{statusLabel}</TooltipPopup>
+          </Tooltip>
+          {failed ? null : (
+            <div className="ml-auto flex items-center gap-0.5">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost-muted"
+                      onPointerDown={(event) => event.preventDefault()}
+                      onClick={() => ctx.onCancelScheduledTurn(scheduledTurn.id)}
+                      aria-label="Cancel and return to the composer"
+                    />
+                  }
+                >
+                  <XIcon className="size-3.5" aria-hidden />
+                </TooltipTrigger>
+                <TooltipPopup side="bottom">Cancel and return to the composer</TooltipPopup>
+              </Tooltip>
+            </div>
+          )}
         </div>
       </div>
     </div>

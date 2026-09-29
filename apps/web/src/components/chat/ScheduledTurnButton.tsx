@@ -5,8 +5,7 @@ import * as Option from "effect/Option";
 import { CalendarClockIcon, XIcon } from "lucide-react";
 import { useContext, useMemo, useState } from "react";
 
-import { cancelScheduledTurn, scheduledTurns } from "../../state/scheduledTurns";
-import { useAtomCommand } from "../../state/use-atom-command";
+import { scheduledTurns } from "../../state/scheduledTurns";
 import { formatEnvironmentQueryError } from "../../state/query";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -23,6 +22,7 @@ export function ScheduledTurnButton(props: {
   threadId: ThreadId;
   disabledReason: string | null;
   onSchedule: (scheduledAt: string) => Promise<boolean>;
+  onCancel: (id: string) => void;
 }) {
   const registry = useContext(RegistryContext);
   const query = useMemo(
@@ -32,7 +32,6 @@ export function ScheduledTurnButton(props: {
   );
   const result = useAtomValue(query);
   const messages = Option.getOrElse(AsyncResult.value(result), () => []);
-  const cancel = useAtomCommand(cancelScheduledTurn, { reportFailure: false });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dateTime, setDateTime] = useState(() =>
@@ -146,15 +145,8 @@ export function ScheduledTurnButton(props: {
                         type="button"
                         size="icon-xs"
                         variant="ghost"
-                        aria-label="Cancel scheduled message"
-                        onClick={() => {
-                          void cancel({
-                            environmentId: props.environmentId,
-                            input: { id: message.id, threadId: props.threadId },
-                          }).then((outcome) => {
-                            if (outcome._tag === "Success") registry.refresh(query);
-                          });
-                        }}
+                        aria-label="Cancel and return to the composer"
+                        onClick={() => props.onCancel(message.id)}
                       >
                         <XIcon className="size-3.5" />
                       </Button>

@@ -1444,6 +1444,7 @@ export interface ChatComposerProps {
   onCompactContext: () => void;
   onSend: (e?: { preventDefault: () => void }, intent?: ComposerSubmissionIntent) => void;
   onSchedule: (scheduledAt: string) => Promise<boolean>;
+  onCancelScheduledTurn: (id: string) => void;
   onInterrupt: () => void;
   onImplementPlanInNewThread: () => void;
   onRespondToApproval: (
@@ -1561,6 +1562,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onCompactContext,
     onSend,
     onSchedule,
+    onCancelScheduledTurn,
     onInterrupt,
     onImplementPlanInNewThread,
     onRespondToApproval,
@@ -7066,6 +7068,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               : null
                       }
                       onSchedule={onSchedule}
+                      onCancel={onCancelScheduledTurn}
                     />
                   ) : null}
                 </div>

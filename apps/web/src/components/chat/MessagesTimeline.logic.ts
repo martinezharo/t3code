@@ -34,6 +34,7 @@ import type { QueuedComposerMessage } from "../../queuedMessageStore";
 import {
   type MessageId,
   type OrchestrationLatestTurn,
+  type ScheduledTurn,
   type TurnId,
   type WorktreeSetupSnapshot,
 } from "@t3tools/contracts";
@@ -460,6 +461,12 @@ export type MessagesTimelineRow =
       queuedMessage: QueuedComposerMessage;
       /** Oldest queued message, the one the next boundary sends. */
       isNext: boolean;
+    }
+  | {
+      kind: "scheduled-message";
+      id: string;
+      createdAt: string;
+      scheduledTurn: ScheduledTurn;
     };
 
 export interface StableMessagesTimelineRowsState {
@@ -975,6 +982,8 @@ export function deriveMessagesTimelineRows(input: {
   worktreeSetup?: WorktreeSetupSnapshot | null;
   /** Messages sent during the running turn, rendered after the live rows. */
   queuedMessages?: ReadonlyArray<QueuedComposerMessage>;
+  /** Server-held messages that have not gone out yet, rendered after the queued ones. */
+  scheduledTurns?: ReadonlyArray<ScheduledTurn>;
 }): MessagesTimelineRow[] {
   const turnDiffSummaryByAssistantMessageId = new Map<MessageId, TurnDiffSummary>();
   for (const summary of input.turnDiffSummaries) {
@@ -1483,6 +1492,23 @@ export function deriveMessagesTimelineRows(input: {
       isNext: index === 0,
     });
   });
+  if (input.scheduledTurns && input.scheduledTurns.length > 0) {
+    // A scheduled turn's message id is its own id, so once the server has sent
+    // it the real message is in the timeline and the placeholder must go.
+    const sentMessageIds = new Set<string>();
+    for (const entry of input.timelineEntries) {
+      if (entry.kind === "message") sentMessageIds.add(entry.message.id);
+    }
+    for (const scheduledTurn of input.scheduledTurns) {
+      if (sentMessageIds.has(scheduledTurn.id)) continue;
+      rows.push({
+        kind: "scheduled-message",
+        id: `scheduled-message:${scheduledTurn.id}`,
+        createdAt: scheduledTurn.scheduledAt,
+        scheduledTurn,
+      });
+    }
+  }
   return rows;
 }
 
@@ -1642,6 +1668,9 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       const bq = b as typeof a;
       return a.queuedMessage === bq.queuedMessage && a.isNext === bq.isNext;
     }
+
+    case "scheduled-message":
+      return a.scheduledTurn === (b as typeof a).scheduledTurn;
 
     case "work": {
       const bw = b as typeof a;
